@@ -928,6 +928,24 @@ sub _init
 		$self->{fhlog} = new IO::File;
 		$self->{fhlog}->open(">>$self->{logfile}") or $self->logit("FATAL: can't log to $self->{logfile}, $!\n", 0, 1);
 	}
+	$self->{csvlog} = undef;
+	if ($self->{dump_as_csv}) {
+		$self->{csvlog} = new IO::File;
+		$self->{csvlog}->open(">>$self->{dump_as_csv}") or $self->logit("FATAL: can't log to $self->{dump_as_csv}, $!\n", 0, 1);
+	}
+	$self->{sheetlog} = undef;
+	if ($self->{dump_as_sheet}) {
+		$self->{sheetlog} = new IO::File;
+		$self->{sheetlog}->open(">>$self->{dump_as_sheet}") or $self->logit("FATAL: can't log to $self->{dump_as_sheet}, $!\n", 0, 1);
+		if (-z $self->{sheetlog}) {
+			$self->{print_header} = 1;
+		}
+	}
+	$self->{htmllog} = undef;
+	if ($self->{dump_as_html}) {
+		$self->{htmllog} = new IO::File;
+		$self->{htmllog}->open(">>$self->{dump_as_html}") or $self->logit("FATAL: can't log to $self->{dump_as_html}, $!\n", 0, 1);
+	}
 
 	# Autoconvert SRID
 	if (not defined $self->{convert_srid} || ($self->{convert_srid} != 0)) {
@@ -1009,9 +1027,6 @@ sub _init
 	$self->{bzip2} ||= '/usr/bin/bzip2';
 	$self->{default_numeric} ||= 'bigint';
 	$self->{type_of_type} = ();
-	$self->{dump_as_html} ||= 0;
-	$self->{dump_as_csv} ||= 0;
-	$self->{dump_as_sheet} ||= 0;
 	$self->{top_max} ||= 10;
 	$self->{print_header} ||= 0;
 
@@ -9175,6 +9190,54 @@ sub randpattern
 	return $string;
 }
 
+=head2 csvit
+
+This function log information to a logfile
+
+=cut
+
+sub csvit
+{
+        my ($self, $message) = @_;
+	if (defined ($self->{csvlog})) {
+                $self->{csvlog}->print($message);
+        } else {
+                logit @_;
+        }
+}
+
+=head2 sheetit
+
+This function log information to a logfile
+
+=cut
+
+sub sheetit
+{
+        my ($self, $message) = @_;
+	if (defined ($self->{sheetlog})) {
+                $self->{sheetlog}->print($message);
+        } else {
+                logit @_;
+        }
+}
+
+=head2 htmlit
+
+This function log information to a logfile
+
+=cut
+
+sub htmlit
+{
+        my ($self, $message) = @_;
+	if (defined ($self->{htmllog})) {
+                $self->{htmllog}->print($message);
+        } else {
+                logit @_;
+        }
+}
+
 =head2 logit
 
 This function log information to STDOUT or to a logfile
@@ -9207,6 +9270,9 @@ sub logit
 		$self->{fhlog}->close() if (defined $self->{fhlog});
 		$self->{dbh}->disconnect() if ($self->{dbh});
 		$self->{dbhdest}->disconnect() if ($self->{dbhdest});
+		$self->{csvlog}->close() if (defined $self->{csvlog});
+		$self->{sheetlog}->close() if (defined $self->{sheetlog});
+		$self->{htmllog}->close() if (defined $self->{htmllog});
 		die "Aborting export...\n";
 	}
 }
@@ -11592,7 +11658,7 @@ Technical levels:
     5 = difficult: stored functions and/or triggers with code rewriting
 };
 	# Generate report text report
-	if (!$self->{dump_as_html} && !$self->{dump_as_csv} && !$self->{dump_as_sheet}) {
+	if (! defined ($self->{dump_as_html}) && ! defined ($self->{dump_as_csv}) && ! defined ($self->{dump_as_sheet})) {
 		my $cost_header = '';
 		$cost_header = "\tEstimated cost" if ($self->{estimate_cost});
 		$self->logit("-------------------------------------------------------------------------------\n", 0);
@@ -11651,25 +11717,27 @@ Technical levels:
 				$self->logit("-------------------------------------------------------------------------------\n", 0);
 			}
 		}
-	} elsif ($self->{dump_as_csv}) {
-		$self->logit("-------------------------------------------------------------------------------\n", 0);
-		$self->logit("Ora2Pg v$VERSION - Database Migration Report\n", 0);
-		$self->logit("-------------------------------------------------------------------------------\n", 0);
-		$self->logit("Version\t$report_info{'Version'}\n", 0);
-		$self->logit("Schema\t$report_info{'Schema'}\n", 0);
-		$self->logit("Size\t$report_info{'Size'}\n\n", 0);
-		$self->logit("-------------------------------------------------------------------------------\n\n", 0);
-		$self->logit("Object;Number;Invalid;Estimated cost;Comments\n", 0);
+	} else {
+	    if (defined ($self->{dump_as_csv)}) {
+		$self->csvit("-------------------------------------------------------------------------------\n", 0);
+		$self->csvit("Ora2Pg v$VERSION - Database Migration Report\n", 0);
+		$self->csvit("-------------------------------------------------------------------------------\n", 0);
+		$self->csvit("Version\t$report_info{'Version'}\n", 0);
+		$self->csvit("Schema\t$report_info{'Schema'}\n", 0);
+		$self->csvit("Size\t$report_info{'Size'}\n\n", 0);
+		$self->csvit("-------------------------------------------------------------------------------\n\n", 0);
+		$self->csvit("Object;Number;Invalid;Estimated cost;Comments\n", 0);
 		foreach my $typ (sort keys %{ $report_info{'Objects'} } ) {
 			$report_info{'Objects'}{$typ}{'detail'} =~ s/\n/\. /gs;
-			$self->logit("$typ;$report_info{'Objects'}{$typ}{'number'};$report_info{'Objects'}{$typ}{'invalid'};$report_info{'Objects'}{$typ}{'cost_value'};$report_info{'Objects'}{$typ}{'comment'}\n", 0);
+			$self->csvit("$typ;$report_info{'Objects'}{$typ}{'number'};$report_info{'Objects'}{$typ}{'invalid'};$report_info{'Objects'}{$typ}{'cost_value'};$report_info{'Objects'}{$typ}{'comment'}\n", 0);
 		}
 		my $human_cost = $self->_get_human_cost($report_info{'total_cost_value'});
 		$difficulty = '' if (!$self->{estimate_cost});
-		$self->logit("\n", 0);
-		$self->logit("Total Number;Total Invalid;Total Estimated cost;Human days cost;Migration level\n", 0);
-		$self->logit("$report_info{'total_object_number'};$report_info{'total_object_invalid'};$report_info{'total_cost_value'};$human_cost;$difficulty\n", 0);
-	} elsif ($self->{dump_as_sheet}) {
+		$self->csvit("\n", 0);
+		$self->csvit("Total Number;Total Invalid;Total Estimated cost;Human days cost;Migration level\n", 0);
+		$self->csvit("$report_info{'total_object_number'};$report_info{'total_object_invalid'};$report_info{'total_cost_value'};$human_cost;$difficulty\n", 0);
+	    } 
+	    if ($self->{dump_as_sheet}) {
 		$difficulty = '' if (!$self->{estimate_cost});
 		my @header = ('Instance', 'Version', 'Schema', 'Size', 'Cost assessment', 'Migration type');
 		my $human_cost = $self->_get_human_cost($report_info{'total_cost_value'});
@@ -11684,10 +11752,11 @@ Technical levels:
 		push(@header, "Total assessment");
 		push(@infos, "$report_info{total_object_number}/$report_info{total_object_invalid}/$report_info{total_cost_value}");
 		if ($self->{print_header}) {
-			$self->logit('"' . join('";"', @header) . '"' . "\n");
+			$self->sheetit('"' . join('";"', @header) . '"' . "\n");
 		}
-		$self->logit('"' . join('";"', @infos) . '"' . "\n");
-	} else {
+		$self->sheetit('"' . join('";"', @infos) . '"' . "\n");
+	    } 
+	    if ($self->{dump_as_html}) {
 		my $cost_header = '';
 		$cost_header = "<th>Estimated cost</th>" if ($self->{estimate_cost});
 		my $date = localtime(time);
@@ -11801,25 +11870,25 @@ h2 {
 <tr><th>Object</th><th>Number</th><th>Invalid</th>$cost_header<th>Comments</th><th>Details</th></tr>
 };
 
-		$self->logit($html_header, 0);
+		$self->htmlit($html_header, 0);
 		foreach my $typ (sort keys %{ $report_info{'Objects'} } ) {
 			$report_info{'Objects'}{$typ}{'detail'} =~ s/\n/<br>/gs;
 			if ($self->{estimate_cost}) {
-				$self->logit("<tr><td class=\"object_name\">$typ</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'number'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'invalid'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'cost_value'}</td><td>$report_info{'Objects'}{$typ}{'comment'}</td><td class=\"detail\">$report_info{'Objects'}{$typ}{'detail'}</td></tr>\n", 0);
+				$self->htmlit("<tr><td class=\"object_name\">$typ</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'number'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'invalid'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'cost_value'}</td><td>$report_info{'Objects'}{$typ}{'comment'}</td><td class=\"detail\">$report_info{'Objects'}{$typ}{'detail'}</td></tr>\n", 0);
 			} else {
-				$self->logit("<tr><td class=\"object_name\">$typ</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'number'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'invalid'}</td><td>$report_info{'Objects'}{$typ}{'comment'}</td><td class=\"detail\">$report_info{'Objects'}{$typ}{'detail'}</td></tr>\n", 0);
+				$self->htmlit("<tr><td class=\"object_name\">$typ</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'number'}</td><td style=\"text-align: center;\">$report_info{'Objects'}{$typ}{'invalid'}</td><td>$report_info{'Objects'}{$typ}{'comment'}</td><td class=\"detail\">$report_info{'Objects'}{$typ}{'detail'}</td></tr>\n", 0);
 			}
 		}
 		if ($self->{estimate_cost}) {
 			my $human_cost = $self->_get_human_cost($report_info{'total_cost_value'});
 			my $comment = "$report_info{'total_cost_value'} cost migration units means approximatively $human_cost. The migration unit was set to $self->{cost_unit_value} minute(s)\n";
-			$self->logit("<tr><th style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">Total</th><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_number'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_invalid'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_cost_value'}</td><td colspan=\"2\" style=\"border-bottom: 0px; vertical-align: bottom;\">$comment</td></tr>\n", 0);
+			$self->htmlit("<tr><th style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">Total</th><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_number'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_invalid'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_cost_value'}</td><td colspan=\"2\" style=\"border-bottom: 0px; vertical-align: bottom;\">$comment</td></tr>\n", 0);
 		} else {
-			$self->logit("<tr><th style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">Total</th><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_number'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_invalid'}</td><td colspan=\"3\" style=\"border-bottom: 0px; vertical-align: bottom;\"></td></tr>\n", 0);
+			$self->htmlit("<tr><th style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">Total</th><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_number'}</td><td style=\"text-align: center; border-bottom: 0px; vertical-align: bottom;\">$report_info{'total_object_invalid'}</td><td colspan=\"3\" style=\"border-bottom: 0px; vertical-align: bottom;\"></td></tr>\n", 0);
 		}
-		$self->logit("</table>\n</div>\n", 0);
+		$self->htmlit("</table>\n</div>\n", 0);
 		if ($self->{estimate_cost}) {
-			$self->logit("<h2>Migration level: $difficulty</h2>\n", 0);
+			$self->htmlit("<h2>Migration level: $difficulty</h2>\n", 0);
 			$lbl_mig_type = qq{
 <ul>
 <li>Migration levels:</li>
@@ -11838,48 +11907,48 @@ h2 {
   </ul>
 </ul>
 };
-			$self->logit($lbl_mig_type, 0);
+			$self->htmlit($lbl_mig_type, 0);
 			if (scalar keys %{ $report_info{'full_function_details'} }) {
-				$self->logit("<h2>Details of cost assessment per function</h2>\n", 0);
-				$self->logit("<ul>\n", 0);
+				$self->htmlit("<h2>Details of cost assessment per function</h2>\n", 0);
+				$self->htmlit("<ul>\n", 0);
 				foreach my $fct (sort { $report_info{'full_function_details'}{$b}{count} <=> $report_info{'full_function_details'}{$a}{count} } keys %{ $report_info{'full_function_details'} } ) {
 					
-					$self->logit("<li>Function $fct total estimated cost: $report_info{'full_function_details'}{$fct}{count}</li>\n", 0);
-					$self->logit("<ul>\n", 0);
+					$self->htmlit("<li>Function $fct total estimated cost: $report_info{'full_function_details'}{$fct}{count}</li>\n", 0);
+					$self->htmlit("<ul>\n", 0);
 					$report_info{'full_function_details'}{$fct}{info} =~ s/\t/<li>/gs;
 					$report_info{'full_function_details'}{$fct}{info} =~ s/\n/<\/li>\n/gs;
-					$self->logit($report_info{'full_function_details'}{$fct}{info}, 0);
-					$self->logit("</ul>\n", 0);
+					$self->htmlit($report_info{'full_function_details'}{$fct}{info}, 0);
+					$self->htmlit("</ul>\n", 0);
 				}
-				$self->logit("</ul>\n", 0);
+				$self->htmlit("</ul>\n", 0);
 			}
 			if (scalar keys %{ $report_info{'full_trigger_details'} }) {
-				$self->logit("<h2>Details of cost assessment per trigger</h2>\n", 0);
-				$self->logit("<ul>\n", 0);
+				$self->htmlit("<h2>Details of cost assessment per trigger</h2>\n", 0);
+				$self->htmlit("<ul>\n", 0);
 				foreach my $fct (sort { $report_info{'full_trigger_details'}{$b}{count} <=> $report_info{'full_trigger_details'}{$a}{count} } keys %{ $report_info{'full_trigger_details'} } ) {
 					
-					$self->logit("<li>Trigger $fct total estimated cost: $report_info{'full_trigger_details'}{$fct}{count}</li>\n", 0);
-					$self->logit("<ul>\n", 0);
+					$self->htmlit("<li>Trigger $fct total estimated cost: $report_info{'full_trigger_details'}{$fct}{count}</li>\n", 0);
+					$self->htmlit("<ul>\n", 0);
 					$report_info{'full_trigger_details'}{$fct}{info} =~ s/\t/<li>/gs;
 					$report_info{'full_trigger_details'}{$fct}{info} =~ s/\n/<\/li>\n/gs;
-					$self->logit($report_info{'full_trigger_details'}{$fct}{info}, 0);
-					$self->logit("</ul>\n", 0);
+					$self->htmlit($report_info{'full_trigger_details'}{$fct}{info}, 0);
+					$self->htmlit("</ul>\n", 0);
 				}
-				$self->logit("</ul>\n", 0);
+				$self->htmlit("</ul>\n", 0);
 			}
 			if (scalar keys %{ $report_info{'full_view_details'} }) {
-				$self->logit("<h2>Details of cost assessment per view</h2>\n", 0);
-				$self->logit("<ul>\n", 0);
+				$self->htmlit("<h2>Details of cost assessment per view</h2>\n", 0);
+				$self->htmlit("<ul>\n", 0);
 				foreach my $fct (sort { $report_info{'full_view_details'}{$b}{count} <=> $report_info{'full_view_details'}{$a}{count} } keys %{ $report_info{'full_view_details'} } ) {
 					
-					$self->logit("<li>View $fct total estimated cost: $report_info{'full_view_details'}{$fct}{count}</li>\n", 0);
-					$self->logit("<ul>\n", 0);
+					$self->htmlit("<li>View $fct total estimated cost: $report_info{'full_view_details'}{$fct}{count}</li>\n", 0);
+					$self->htmlit("<ul>\n", 0);
 					$report_info{'full_view_details'}{$fct}{info} =~ s/\t/<li>/gs;
 					$report_info{'full_view_details'}{$fct}{info} =~ s/\n/<\/li>\n/gs;
-					$self->logit($report_info{'full_view_details'}{$fct}{info}, 0);
-					$self->logit("</ul>\n", 0);
+					$self->htmlit($report_info{'full_view_details'}{$fct}{info}, 0);
+					$self->htmlit("</ul>\n", 0);
 				}
-				$self->logit("</ul>\n", 0);
+				$self->htmlit("</ul>\n", 0);
 			}
 		}
 		my $html_footer = qq{
@@ -11889,7 +11958,7 @@ Generated by <a href="http://ora2pg.darold.net/">Ora2Pg v$VERSION</a>
 </body>
 </html>
 };
-		$self->logit($html_footer, 0);
+		$self->htmlit($html_footer, 0);
 	}
 
 }

@@ -95,10 +95,8 @@ for (my $i = 0; $i < @DB_DNS; $i++) {
 	my $audit = '';
 	$audit = " --audit_user \"$DB_DNS[$i]->{audit_user}\"" if ($DB_DNS[$i]->{audit_user});
 	if (!$DRYRUN) {
-		print "Running: ora2pg$typ -t SHOW_REPORT --dump_as_sheet --estimate_cost$header$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} >> $OUTDIR/dbs_scan.csv\n";
-		`ora2pg$typ -t SHOW_REPORT --dump_as_sheet --estimate_cost$header$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} >> $OUTDIR/dbs_scan.csv`;
-		print "Running: ora2pg$typ -t SHOW_REPORT --dump_as_html --estimate_cost$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} >> $OUTDIR/$DB_DNS[$i]->{schema}-report.html\n";
-		`ora2pg$typ -t SHOW_REPORT --dump_as_html --estimate_cost$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} >> $OUTDIR/$DB_DNS[$i]->{schema}-report.html`;
+		print "Running: ora2pg$typ -t SHOW_REPORT --dump_as_html $OUTDIR/$DB_DNS[$i]->{schema}-report.html --dump_as_sheet $OUTDIR/dbs_scan.csv --estimate_cost$header$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} >> $OUTDIR/dbs_scan.csv\n";
+		`ora2pg$typ -t SHOW_REPORT --dump_as_html $OUTDIR/$DB_DNS[$i]->{schema}-report.html --dump_as_sheet $OUTDIR/dbs_scan.csv --estimate_cost$header$audit -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema}`;
 	} else {
 		print "Running: ora2pg$typ -t SHOW_SCHEMA -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} | grep -i \"$DB_DNS[$i]->{schema}\"\n";
 		print `ora2pg$typ -t SHOW_SCHEMA -s '$DB_DNS[$i]->{dsn}' -n $DB_DNS[$i]->{schema} | grep -i "$DB_DNS[$i]->{schema}"`;
